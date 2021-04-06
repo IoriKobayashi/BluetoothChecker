@@ -173,7 +173,8 @@ void SlaveScene::editBoxEditingDidBegin(ui::EditBox * pEdit)
 void SlaveScene::editBoxEditingDidEnd(ui::EditBox * pEdit)
 {
     std::string inputStr = pEdit->getText();
-    BluetoothDriver::SetPeriToCentData(inputStr);
+    //BluetoothDriver::SetPeriToCentData(inputStr);
+    BluetoothDriver::SetPeriToCentDataWithNotify(inputStr);
 }
 
 //---------------------------------------------------------------------------

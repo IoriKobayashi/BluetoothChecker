@@ -47,6 +47,8 @@
 - (void) disConnect;
 // 書き込み
 - (void) write:(unsigned char*)writeData;
+// 読み込み要求
+- (void) readRequest;
 
 //------------------------------
 // ペリフェラル用
@@ -54,5 +56,7 @@
 - (void) advertiseStart;
 // アドバタイズ停止
 - (void) advertiseStop;
+// Notify付きデータ設定
+- (void) setDataWithNotify:(std::string)str;
 
 @end

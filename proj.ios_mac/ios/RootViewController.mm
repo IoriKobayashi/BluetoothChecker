@@ -48,6 +48,7 @@ static RootViewController *selfAddr = nil;
 @property (nonatomic, strong) CBCharacteristic *readCharacteristic;
 // スレーブ（ペリフェラル）用
 @property (nonatomic, strong) CBPeripheralManager *peripheralManager;
+@property (nonatomic, strong) CBMutableCharacteristic *periCharacteristic;
 @end
 
 @implementation RootViewController
@@ -278,6 +279,9 @@ didDiscoverCharacteristicsForService:(CBService *)service
             NSLog(@"READキャラクタリスティック発見");
             // キャラクタリスティックの保存
             self.readCharacteristic = chara;
+            // 更新通知を受け取る設定にしておく（受信データ更新デリゲートが勝手に呼ばれるようになる）
+            // ただし相手がnotifyを送ってこなければいけないので仕様を決める際に考慮すること
+            [peripheral setNotifyValue:YES forCharacteristic:chara];
         }
         
         // Writeなど別キャラクタリスティックを探すときはここに書けばいい
@@ -285,7 +289,7 @@ didDiscoverCharacteristicsForService:(CBService *)service
     
     // 接続中？
     if( BluetoothDriver::IsConnect() == CONNECTING ){
-        if ( self.writeCharacteristic != nil ) {
+        if ( self.readCharacteristic != nil ) {
             // 接続結果の通知
             BluetoothDriver::SetConnectResult(CONNECT_OK);
         }
@@ -317,24 +321,12 @@ didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
         return;
     }
     NSLog(@"読み込み成功");
+    
+    char* bytePtr = (char*)[characteristic.value bytes];
+    std::string str(bytePtr, [characteristic.value length]);
 
-    //***************************************************************
-    // NSDataで受信したデータには最終データに'\0'が含まれない為
-    // メモリ上は別データと連結してしまうことがある。
-    // NSData->lengthを参照してデータ数を意識する必要あり。
-    //***************************************************************
-    // NSData型のバイト列をunsigned charポインタで受け取る
-    unsigned char* temp = (unsigned char*)[characteristic.value bytes];
-    // NSData型バイト列のサイズを取得
-    int nDataVal = [characteristic.value length];
-    // サイズ＋１('\0')の配列を作成
-    unsigned char data[ nDataVal + 1 ];
-    // 受信データを配列にコピーする
-    strncpy( (char*)data, (const char*)temp, nDataVal );
-    // 終端の代入
-    data[nDataVal] = 0;
     // ドライバに読み込みデータの登録
-    BluetoothDriver::SetReadData(data);
+    BluetoothDriver::SetReadData(str);
 }
 
 #pragma mark - CBPeripheralManager Delegate
@@ -351,11 +343,13 @@ didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
         
         // キャラクタリスティックの作成
         CBUUID *characteristicUUID = [CBUUID UUIDWithString:@CHARACTERISTIC_UUID];
+        // キャラクタリスティックプロパティを準備する（今回はWriteなし）
+        CBCharacteristicProperties properties = (CBCharacteristicPropertyRead | CBCharacteristicPropertyNotify);
         // キャラクタリスティックに対してReadのみ付与する
-        CBMutableCharacteristic *characteristic = [[CBMutableCharacteristic alloc]initWithType:characteristicUUID properties:CBCharacteristicPropertyRead value:nil permissions:CBAttributePermissionsReadable];
+        self.periCharacteristic = [[CBMutableCharacteristic alloc]initWithType:characteristicUUID properties:properties value:nil permissions:CBAttributePermissionsReadable];
         
         // サービスにキャラクタリスティックの紐付けする(今回は一つ)
-        service.characteristics = @[characteristic];
+        service.characteristics = @[self.periCharacteristic];
         
         // ペリフェラルマネージャに対してサービスを紐付けする(完了デリゲート有)
         [self.peripheralManager addService:service];
@@ -400,10 +394,28 @@ didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
             data = [@"ReadOK" dataUsingEncoding:NSUTF8StringEncoding];
         }
         // 応答データの設定
-        request.value = [@"ReadOK" dataUsingEncoding:NSUTF8StringEncoding];
+        request.value = data;
         // 応答を返す
         [self.peripheralManager respondToRequest:request withResult:CBATTErrorSuccess];
     }
+}
+
+//---------------------------------------
+// Notify開始リクエスト通知
+- (void)    peripheralManager:(CBPeripheralManager *)peripheral
+                      central:(nonnull CBCentral *)central
+ didSubscribeToCharacteristic:(nonnull CBCharacteristic *)characteristic
+{
+    NSLog(@"Notify開始リクエスト受信");
+}
+
+//---------------------------------------
+// Notify停止リクエスト通知
+- (void)            peripheralManager:(CBPeripheralManager *)peripheral
+                              central:(nonnull CBCentral *)central
+     didUnsubscribeFromCharacteristic:(nonnull CBCharacteristic *)characteristic
+{
+    NSLog(@"Notify停止リクエスト受信");
 }
 
 #pragma mark - Bluetooth Driver Action
@@ -473,47 +485,13 @@ didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
 //---------------------------------------
 // 書き込み
 - (void) write:(unsigned char*)writeData {
-    unsigned char cLen;
-    // サイズがわからないので地味に調べる
-    for( cLen = 0; cLen < 256; cLen++ ) {
-        if( writeData[cLen] == 0 ){
-            break;
-        }
-    }
-    
-    // データ長異常時
-    if ( ( cLen == 0 ) || ( cLen >= 256 ) ) {
-        return;
-    }
-    
-    /*
-    // LINBLEとIMBLEで処理分岐
-    if (CHARA_WRITE == LINBLE_CHARA_WRITE) {
-        // NSDataへ変換する
-        NSData* data = [[NSData alloc] initWithBytes:writeData length:cLen];
 
-        // LINBLEは確認応答なしで書き込みを行う
-        [self.peripheralFromCentral writeValue:data
-                  forCharacteristic:self.writeCharacteristic
-                               type:CBCharacteristicWriteWithoutResponse];
-    }
-    else if (CHARA_WRITE == IMBLE_CHARA_WRITE) {
-        unsigned char writeBuff[20] = {
-            (unsigned char)(cLen + 3), 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        };
-        
-        memcpy( &writeBuff[4], writeData, cLen );
-        
-        // NSDataへ変換する
-        NSData* data = [[NSData alloc] initWithBytes:writeBuff length:20];
-        
-        // IMBLEは確認応答ありで書き込みを行う
-        [self.peripheralFromCentral writeValue:data
-                  forCharacteristic:self.writeCharacteristic
-                               type:CBCharacteristicWriteWithResponse];
-    }
-     */
+}
+
+//---------------------------------------
+// 読み込み要求
+- (void)readRequest {
+    [self.peripheralFromCentral readValueForCharacteristic:self.readCharacteristic];
 }
 
 //---------------------------------------
@@ -531,6 +509,22 @@ didUpdateValueForCharacteristic:(CBCharacteristic *)characteristic
     // アドバタイズを停止する
     [self.peripheralManager stopAdvertising];
     // アドバタイズ停止については処理完了デリゲートはないのでここで終了
+}
+
+//---------------------------------------
+// Notify付きデータの設定
+- (void)setDataWithNotify:(std::string)str
+{
+    // NSData型に変換する
+    NSData *data = [[NSData alloc] initWithBytes:str.data() length:str.length()];
+    if( data == nil ){
+        data = [@"ReadOK" dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    
+    self.periCharacteristic.value = data;
+    
+    // Notify通知を行う
+    [self.peripheralManager updateValue:data forCharacteristic:self.periCharacteristic onSubscribedCentrals:nil];
 }
 
 @end

@@ -27,9 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>マルチテスト用にBluetoothを使用します。</string>
+	<string>Bluetooth学習用に使用します。</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>マルチテスト用にBluetoothを使用します。</string>
+	<string>Bluetooth学習用に使用します。</string>
 	<key>UIAppFonts</key>
 	<array/>
 	<key>UILaunchStoryboardName</key>

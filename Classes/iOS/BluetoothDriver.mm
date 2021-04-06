@@ -9,9 +9,8 @@
 BT_INFO BluetoothDriver::sm_periInfo[MAX_PERIPHERAL_INFO];
 int BluetoothDriver::sm_infoVal = 0;
 BT_CONNECT BluetoothDriver::sm_conResult = DISCONNECT;
-unsigned char BluetoothDriver::sm_readData[512] = {};
-int BluetoothDriver::sm_nCmdVal = 0;
 std::string BluetoothDriver::sm_periToCent = "";
+std::string BluetoothDriver::sm_readDataFromPeri = "";
 
 //--------------------------------------
 // スキャン開始
@@ -26,9 +25,6 @@ void BluetoothDriver::ScanStart( void )
     
     // ペリフェラル情報数のクリア
     sm_infoVal = 0;
-    
-    // 読み込みデータのクリア
-    sm_readData[0] = 0;
 }
 
 //--------------------------------------
@@ -84,23 +80,21 @@ void BluetoothDriver::Write( unsigned char* msg )
 }
 
 //--------------------------------------
+// 読み込み要求
+//--------------------------------------
+void BluetoothDriver::ReadRequest( void )
+{
+    RootViewController* con = [RootViewController getInstance];
+    
+    [con readRequest];
+}
+
+//--------------------------------------
 // 読み込み
 //--------------------------------------
-int BluetoothDriver::Read( unsigned char* msg )
+std::string BluetoothDriver::Read( void )
 {
-    // 読み込みデータがないなら即終了
-    if( sm_nCmdVal == 0 ) {
-        return 0;
-    }
-    
-    memcpy(msg, sm_readData, sm_nCmdVal);
-    
-    int nCmdVal = sm_nCmdVal;
-    // クリア
-    sm_readData[0] = 0;
-    sm_nCmdVal = 0;
-    
-    return nCmdVal;
+    return sm_readDataFromPeri;
 }
 
 //--------------------------------------
@@ -134,6 +128,17 @@ void BluetoothDriver::SetPeriToCentData( std::string str )
     sm_periToCent = str;
 }
 
+//--------------------------------------
+// Notify付きペリフェラルからセントラルに送るデータ（セントラルからのRead）
+//--------------------------------------
+void BluetoothDriver::SetPeriToCentDataWithNotify( std::string str )
+{
+    // ルートのインスタンス
+    RootViewController* con = [RootViewController getInstance];
+    // データを設定してNotify通知を出す
+    [con setDataWithNotify:str];
+}
+
 //------------------------------------------------------------------------------
 //--------------------------------------
 // ペリフェラル発見
@@ -160,9 +165,9 @@ void BluetoothDriver::SetConnectResult( BT_CONNECT con )
 //--------------------------------------
 // 読み込みデータの設定
 //--------------------------------------
-void BluetoothDriver::SetReadData(unsigned char *msg)
+void BluetoothDriver::SetReadData(std::string str)
 {
-
+    sm_readDataFromPeri = str;
 }
 
 //--------------------------------------

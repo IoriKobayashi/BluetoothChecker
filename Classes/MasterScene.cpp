@@ -17,6 +17,7 @@
 #define OBJNAME_BTNDEVICE(id)   StringUtils::format("BtnDevice%d", id)
 #define OBJNAME_BTNDISCONNECT   "BtnDisconnect"
 #define OBJNAME_BTNREAD         "BtnRead"
+#define OBJNAME_TEXTREAD        "TextRead"
 
 USING_NS_CC;
 
@@ -69,17 +70,17 @@ bool MasterScene::init()
     // タイトルテキストの作成
     ui::Text *pTextTitle = ui::Text::create( "Master通信モード", "mplus-2c-medium.ttf", 16.0f );
     pTextTitle->setColor( Color3B::WHITE );
-    pTextTitle->setPosition( Vec2(visibleSize.width / 2, visibleSize.height / 20 * 17) );
+    pTextTitle->setPosition( Vec2(visibleSize.width / 2, visibleSize.height / 20 * 18) );
     this->addChild( pTextTitle );
 
     // スキャン開始ボタン
     ui::Button* pBtnScan = ui::Button::create( "white.png" );
     pBtnScan->setScale9Enabled( true );
-    pBtnScan->setContentSize( Size(100.0f, 30.0f) );
+    pBtnScan->setContentSize( Size(100.0f, 25.0f) );
     pBtnScan->setTitleColor( Color3B::BLACK );
     pBtnScan->setTitleText( "スキャン開始" );
     pBtnScan->setTitleFontSize( 16.0f );
-    pBtnScan->setPosition( Vec2(visibleSize.width / 2, visibleSize.height / 20 * 15) );
+    pBtnScan->setPosition( Vec2(visibleSize.width / 2, visibleSize.height / 20 * 16) );
     pBtnScan->addTouchEventListener( CC_CALLBACK_2( MasterScene::BtnEventScan, this ));
     this->addChild( pBtnScan, 0, OBJNAME_BTNSCAN );
 
@@ -88,7 +89,7 @@ bool MasterScene::init()
         ui::Text *pTextBt = ui::Text::create( "----", "mplus-2c-medium.ttf", 10.0f );
         pTextBt->setColor( Color3B::WHITE );
         pTextBt->setAnchorPoint( Vec2(0.0f, 0.5f) );
-        pTextBt->setPosition( Vec2(visibleSize.width / 8, visibleSize.height / 20 * (13 - nCnt)) );
+        pTextBt->setPosition( Vec2(visibleSize.width / 8, visibleSize.height / 20 * (14 - nCnt)) );
         pTextBt->setContentSize( Size(200.0f, 20.0f) );
         pTextBt->setTextAreaSize( Size(200.0f, 20.0f) );
         pTextBt->setTextHorizontalAlignment(TextHAlignment::LEFT);
@@ -111,11 +112,11 @@ bool MasterScene::init()
     // 読み込みボタン
     ui::Button* pBtnRead = ui::Button::create( "white.png" );
     pBtnRead->setScale9Enabled( true );
-    pBtnRead->setContentSize( Size(80.0f, 30.0f) );
+    pBtnRead->setContentSize( Size(80.0f, 25.0f) );
     pBtnRead->setTitleColor( Color3B::GRAY );
     pBtnRead->setTitleText( "読み込み" );
     pBtnRead->setTitleFontSize( 16.0f );
-    pBtnRead->setPosition( Vec2(visibleSize.width / 4, visibleSize.height / 20 * 3) );
+    pBtnRead->setPosition( Vec2(visibleSize.width / 4, visibleSize.height / 20 * 4) );
     pBtnRead->addTouchEventListener( CC_CALLBACK_2( MasterScene::BtnEventRead, this ));
     pBtnRead->setEnabled( false );
     this->addChild( pBtnRead, 0, OBJNAME_BTNREAD );
@@ -123,14 +124,23 @@ bool MasterScene::init()
     // 切断ボタン
     ui::Button* pBtnDiscon = ui::Button::create( "white.png" );
     pBtnDiscon->setScale9Enabled( true );
-    pBtnDiscon->setContentSize( Size(80.0f, 30.0f) );
+    pBtnDiscon->setContentSize( Size(80.0f, 25.0f) );
     pBtnDiscon->setTitleColor( Color3B::GRAY );
     pBtnDiscon->setTitleText( "切断" );
     pBtnDiscon->setTitleFontSize( 16.0f );
-    pBtnDiscon->setPosition( Vec2(visibleSize.width / 4 * 3, visibleSize.height / 20 * 3) );
+    pBtnDiscon->setPosition( Vec2(visibleSize.width / 4 * 3, visibleSize.height / 20 * 4) );
     pBtnDiscon->addTouchEventListener( CC_CALLBACK_2( MasterScene::BtnEventDisconnect, this ));
     pBtnDiscon->setEnabled( false );
     this->addChild( pBtnDiscon, 0, OBJNAME_BTNDISCONNECT );
+    
+    // 読み込みデータ表示
+    ui::Text * pTextRead = ui::Text::create( "Read Data:", "mplus-2c-medium.ttf", 10.0f );
+    pTextRead->setPosition( Vec2(visibleSize.width / 2, visibleSize.height / 20 * 2) );
+    pTextRead->setColor( Color3B::WHITE );
+    pTextRead->setContentSize( Size(300.0f, 20.0f) );
+    pTextRead->setTextAreaSize( Size(300.0f, 20.0f) );
+    pTextRead->setTextHorizontalAlignment(TextHAlignment::CENTER);
+    this->addChild( pTextRead, 0, OBJNAME_TEXTREAD );
 
     return true;
 }
@@ -172,6 +182,56 @@ void MasterScene::UpdateScan(float fTime)
         // 発見済の数値更新
         m_nFoundPeri = nPeriVal;
     }
+}
+
+//---------------------------------------------------------------------------
+// 接続中中更新処理
+//---------------------------------------------------------------------------
+void MasterScene::UpdateConnect(float fTime)
+{
+    static BT_CONNECT oldStatus = DISCONNECT;       // 直前の接続状態
+    // 接続ステータスの取得
+    BT_CONNECT btStatus = BluetoothDriver::IsConnect();
+
+    // 接続試行中？
+    if( btStatus == CONNECTING ){
+        oldStatus = btStatus;
+    }
+    // 切断？
+    else if( btStatus == DISCONNECT ){
+        // 切断時は各種ボタンの無効化など設定が必要
+        // 読み込みボタン
+        ui::Button * pBtnRead = (ui::Button*)this->getChildByName( OBJNAME_BTNREAD );
+        pBtnRead->setEnabled( false );
+        pBtnRead->setTitleColor( Color3B::GRAY );
+        // 切断ボタン
+        ui::Button * pBtnDisCon = (ui::Button*)this->getChildByName( OBJNAME_BTNDISCONNECT );
+        pBtnDisCon->setEnabled( false );
+        pBtnDisCon->setTitleColor( Color3B::GRAY );
+        // 更新を止める
+        this->unschedule( schedule_selector(MasterScene::UpdateConnect) );
+        
+    }
+    else if( btStatus == CONNECT_OK ){
+        // 直前まで試行中だった？
+        if( oldStatus == CONNECTING ){
+            // 接続完了に切り替わったタイミングなのでボタンを有効化しておく
+            // 読み込みボタン
+            ui::Button * pBtnRead = (ui::Button*)this->getChildByName( OBJNAME_BTNREAD );
+            pBtnRead->setEnabled( true );
+            pBtnRead->setTitleColor( Color3B::BLACK );
+            // 切断ボタン
+            ui::Button * pBtnDisCon = (ui::Button*)this->getChildByName( OBJNAME_BTNDISCONNECT );
+            pBtnDisCon->setEnabled( true );
+            pBtnDisCon->setTitleColor( Color3B::BLUE );
+        }
+        // 読み込み要求を送る
+        //BluetoothDriver::ReadRequest();
+        // マスターから指示せず切断することがあるため、接続完了しても更新は止めない
+    }
+
+    // 直前の接続状態を更新して終わる
+    oldStatus = btStatus;
 }
 
 //---------------------------------------------------------------------------
@@ -269,6 +329,8 @@ void MasterScene::BtnEventConnect(Ref *pSender, ui::Widget::TouchEventType type)
             ui::Button * pBtn = static_cast<ui::Button*>(pSender);
             // タグ番号のデバイスを指定して接続(接続結果はここではわからない)
             BluetoothDriver::Connect( pBtn->getTag() );
+            // 接続中更新処理を設定する
+            this->schedule( schedule_selector(MasterScene::UpdateConnect), 1.0f );
         }
             break;
         default:
@@ -277,7 +339,7 @@ void MasterScene::BtnEventConnect(Ref *pSender, ui::Widget::TouchEventType type)
 }
 
 //---------------------------------------------------------------------------
-// 切断ボタンイベント
+// 読み込みボタンイベント
 //---------------------------------------------------------------------------
 void MasterScene::BtnEventRead(Ref *pSender, ui::Widget::TouchEventType type)
 {
@@ -289,7 +351,10 @@ void MasterScene::BtnEventRead(Ref *pSender, ui::Widget::TouchEventType type)
             break;
         case ui::Widget::TouchEventType::ENDED:
         {
-            
+            // ドライバから読み込みデータの取得
+            std::string readData = BluetoothDriver::Read();
+            ui::Text * pText = (ui::Text*)this->getChildByName(OBJNAME_TEXTREAD);
+            pText->setText( StringUtils::format("Read Data:%s", readData.c_str()) );
         }
             break;
         default:
@@ -312,6 +377,17 @@ void MasterScene::BtnEventDisconnect(Ref *pSender, ui::Widget::TouchEventType ty
         {
             // 切断する（未接続状態の呼び出しは問題なし）
             BluetoothDriver::DisConnect();
+            // 更新処理を止める
+            this->unschedule( schedule_selector(MasterScene::UpdateConnect) );
+            // ボタンを無効化しておく
+            // 読み込みボタン
+            ui::Button * pBtnRead = (ui::Button*)this->getChildByName( OBJNAME_BTNREAD );
+            pBtnRead->setEnabled( false );
+            pBtnRead->setTitleColor( Color3B::GRAY );
+            // 切断ボタン
+            ui::Button * pBtnDisCon = (ui::Button*)this->getChildByName( OBJNAME_BTNDISCONNECT );
+            pBtnDisCon->setEnabled( false );
+            pBtnDisCon->setTitleColor( Color3B::GRAY );
         }
             break;
         default:
